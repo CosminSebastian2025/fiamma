@@ -32,7 +32,13 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
 import { ageFromBirthdate, formatBirthdate, parseBirthdate } from '@/lib/format';
-import { pickImage, signPhotoKeys, uploadPhoto, type PreparedImage } from '@/lib/media';
+import {
+  deleteLocalPhoto,
+  pickImage,
+  resolvePhotoUrls,
+  saveLocalPhoto,
+  type PreparedImage,
+} from '@/lib/media';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Gender, Interest, ProfileDraft, ProfilePhoto } from '@/lib/types';
 
@@ -103,7 +109,10 @@ export default function Onboarding() {
             getMyPhotos(profile.id),
             getMyInterests(profile.id),
           ]);
-          const urls = await signPhotoKeys(ownPhotos.map((photo) => photo.storage_key));
+          const urls = await resolvePhotoUrls(
+            profile.id,
+            ownPhotos.map((photo) => photo.storage_key),
+          );
           if (!active) return;
           setPhotos(ownPhotos);
           setPhotoUrls(urls);
@@ -185,7 +194,13 @@ export default function Onboarding() {
   const handleRemoveExisting = async (photo: ProfilePhoto) => {
     try {
       await removePhoto(photo.id);
+      await deleteLocalPhoto(session.user.id, photo.storage_key);
       setPhotos((current) => current.filter((item) => item.id !== photo.id));
+      setPhotoUrls((current) => {
+        const next = { ...current };
+        delete next[photo.storage_key];
+        return next;
+      });
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -248,7 +263,7 @@ export default function Onboarding() {
 
       let position = photos.length;
       for (const image of pendingImages) {
-        const key = await uploadPhoto(session.user.id, image);
+        const key = await saveLocalPhoto(session.user.id, image);
         await addPhoto(key, position);
         position += 1;
       }
@@ -297,7 +312,7 @@ export default function Onboarding() {
             <Text style={styles.subtitle}>
               {step === 0
                 ? 'Bastano poche informazioni. Puoi cambiarle quando vuoi.'
-                : 'La prima foto è quella che vedranno per prima. Meglio un volto sorridente.'}
+                : 'Le foto restano private su questo dispositivo: nessuno le vede.'}
             </Text>
           </View>
 
@@ -402,22 +417,28 @@ export default function Onboarding() {
           ) : (
             <View style={styles.section}>
               <View style={styles.photoGrid}>
-                {photos.map((photo) => (
-                  <View key={photo.id} style={styles.photoTile}>
-                    <Image
-                      source={{ uri: photoUrls[photo.storage_key] }}
-                      style={styles.photoImage}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Rimuovi foto"
-                      onPress={() => handleRemoveExisting(photo)}
-                      style={styles.removePhoto}
-                    >
-                      <Ionicons name="close" size={14} color="#fff" />
-                    </Pressable>
-                  </View>
-                ))}
+                {photos.map((photo) => {
+                  const uri = photoUrls[photo.storage_key];
+                  return (
+                    <View key={photo.id} style={styles.photoTile}>
+                      {uri ? (
+                        <Image source={{ uri }} style={styles.photoImage} />
+                      ) : (
+                        <View style={[styles.photoImage, styles.photoMissing]}>
+                          <Ionicons name="image-outline" size={24} color={colors.muted} />
+                        </View>
+                      )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Rimuovi foto"
+                        onPress={() => handleRemoveExisting(photo)}
+                        style={styles.removePhoto}
+                      >
+                        <Ionicons name="close" size={14} color="#fff" />
+                      </Pressable>
+                    </View>
+                  );
+                })}
                 {pendingImages.map((image, index) => (
                   <View key={`${image.uri}-${index}`} style={styles.photoTile}>
                     <Image source={{ uri: image.uri }} style={styles.photoImage} />
@@ -479,8 +500,8 @@ export default function Onboarding() {
                 loading={saving}
               />
               <Text style={styles.footerNote}>
-                Caricando una foto dichiari di averne i diritti. I metadati EXIF, inclusa la
-                posizione GPS, vengono rimossi prima dell’upload.
+                Scegliendo una foto dichiari di averne i diritti. Resta salvata solo su questo
+                dispositivo e i metadati EXIF, inclusa la posizione GPS, vengono rimossi.
               </Text>
             </View>
           )}
@@ -550,6 +571,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   photoImage: { width: '100%', height: '100%' },
+  photoMissing: { alignItems: 'center', justifyContent: 'center' },
   removePhoto: {
     position: 'absolute',
     top: 6,

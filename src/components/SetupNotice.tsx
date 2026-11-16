@@ -20,7 +20,7 @@ export function SetupNotice() {
           <Text style={styles.code}>npx expo start --clear</Text>
         </View>
         <Text style={styles.footer}>
-          La guida completa è nel README: migrazioni, storage R2 e funzioni Edge.
+          La guida completa è nel README: migrazioni, foto locali e funzioni Edge.
         </Text>
       </ScrollView>
     </SafeAreaView>

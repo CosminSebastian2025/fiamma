@@ -18,7 +18,7 @@ import { deleteAccount, getMyInterests, getMyPhotos, getWallet } from '@/lib/api
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
 import { ageFromBirthdate, genderLabel } from '@/lib/format';
-import { signPhotoKeys } from '@/lib/media';
+import { clearLocalPhotos, resolvePhotoUrls } from '@/lib/media';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { ProfilePhoto } from '@/lib/types';
 
@@ -44,7 +44,10 @@ export default function ProfileScreen() {
         getMyInterests(profile.id),
         getWallet(),
       ]);
-      const urls = await signPhotoKeys(ownPhotos.map((photo) => photo.storage_key));
+      const urls = await resolvePhotoUrls(
+        profile.id,
+        ownPhotos.map((photo) => photo.storage_key),
+      );
       setPhotos(ownPhotos);
       setPhotoUrls(urls);
       setInterests(ownInterests);
@@ -77,6 +80,7 @@ export default function ProfileScreen() {
     setDeleteError(null);
     try {
       await deleteAccount();
+      await clearLocalPhotos(profile.id);
       await signOut().catch(() => undefined);
       setConfirmDelete(false);
       router.replace('/sign-in');
@@ -130,13 +134,17 @@ export default function ProfileScreen() {
             </View>
           ) : photos.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-              {photos.map((photo) => (
-                <Image
-                  key={photo.id}
-                  source={{ uri: photoUrls[photo.storage_key] }}
-                  style={styles.photo}
-                />
-              ))}
+              {photos.map((photo) => {
+                const uri = photoUrls[photo.storage_key];
+                if (!uri) {
+                  return (
+                    <View key={photo.id} style={[styles.photo, styles.photoMissing]}>
+                      <Ionicons name="image-outline" size={24} color={colors.muted} />
+                    </View>
+                  );
+                }
+                return <Image key={photo.id} source={{ uri }} style={styles.photo} />;
+              })}
             </ScrollView>
           ) : (
             <View style={styles.photoEmpty}>
@@ -196,8 +204,8 @@ export default function ProfileScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Eliminare l’account?</Text>
             <Text style={styles.modalBody}>
-              Profilo, foto, match e conversazioni saranno cancellati in modo permanente. Questa
-              azione non può essere annullata.
+              Profilo, match e conversazioni saranno cancellati in modo permanente, insieme alle
+              foto salvate su questo dispositivo. Questa azione non può essere annullata.
             </Text>
             {deleteError ? <Text style={styles.error}>{deleteError}</Text> : null}
             <Button
@@ -269,6 +277,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
+  photoMissing: { alignItems: 'center', justifyContent: 'center' },
   photoEmpty: {
     height: 160,
     alignItems: 'center',

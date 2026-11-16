@@ -15,7 +15,6 @@ import { Avatar } from '@/components/Avatar';
 import { getMatches } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { formatListTime } from '@/lib/format';
-import { signPhotoKeys } from '@/lib/media';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { MatchRow } from '@/lib/types';
 
@@ -29,15 +28,7 @@ export default function Matches() {
     if (!quiet) setLoading(true);
     try {
       const rows = await getMatches();
-      const urls = await signPhotoKeys(
-        rows.map((row) => row.photo_key).filter((key): key is string => Boolean(key)),
-      );
-      setMatches(
-        rows.map((row) => ({
-          ...row,
-          photoUrl: row.photo_key ? urls[row.photo_key] ?? null : null,
-        })),
-      );
+      setMatches(rows.map((row) => ({ ...row, photoUrl: null })));
       setError(null);
     } catch (e) {
       if (!quiet) setError(errorMessage(e));

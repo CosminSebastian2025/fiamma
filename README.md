@@ -9,7 +9,7 @@ sticker, monete digitali, blocco e segnalazione, cancellazione account.
 
 - **Client**: Expo SDK 58, React Native 0.88, TypeScript, Expo Router
 - **Backend**: Supabase (Postgres + PostGIS, Auth, Realtime, Edge Functions)
-- **Foto**: Cloudflare R2 con URL firmati; resize e strip EXIF lato client
+- **Foto**: salvate solo nella memoria del dispositivo (nessun cloud); resize e strip EXIF lato client
 - **Stato**: React Context per l'autenticazione, fetch diretti tipizzati
 
 ## Struttura
@@ -27,7 +27,6 @@ src/
 supabase/
   migrations/0001_init.sql   schema, RLS, RPC, seed interessi
   migrations/0002_coins.sql  monete, regali, sticker
-  functions/r2-sign/         URL firmati R2
   functions/delete-account/  cancellazione account
   functions/stripe-coin-checkout/  checkout pacchetti monete
   functions/stripe-webhook/        accredito monete dopo il pagamento
@@ -65,43 +64,31 @@ Senza `{{ .Token }}` l'utente riceve solo un link e non può inserire il codice.
 In **Authentication → URL Configuration** imposta il Site URL su
 `http://localhost:8081` in sviluppo e aggiungi gli URL di produzione.
 
-## 2. Cloudflare R2
+## 2. Foto locali
 
-1. Crea un bucket privato e un token API con permesso Object Read & Write.
-2. Configura il CORS del bucket (necessario per l'upload dal client):
+Le foto del profilo non vengono caricate su alcun servizio: restano nella memoria
+del dispositivo.
 
-```json
-[
-  {
-    "AllowedOrigins": ["http://localhost:8081", "https://tuo-dominio.it"],
-    "AllowedMethods": ["GET", "PUT"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+- **iOS/Android**: i file JPEG vengono salvati nella directory documenti dell'app
+  (`expo-file-system`) e mappati su una chiave `<user_id>/local/<uuid>.jpg`
+  conservata in AsyncStorage.
+- **Web**: la foto viene salvata come data URL in localStorage, quindi vale il
+  limite di circa 5 MB del browser (bastano poche foto per raggiungerlo).
 
-3. Aggiungi una lifecycle rule che elimini gli oggetti dopo N giorni: le foto
-   rimosse dall'app lasciano il file su R2, perché la funzione firma solo URL.
-4. Imposta i secret delle Edge Functions:
+Il database conserva solo la riga `profile_photos` con la chiave: serve a
+`complete_onboarding` e alla gestione dell'ordine. Nessun altro utente può
+vedere le foto, quindi discovery, match e chat mostrano le iniziali come
+segnaposto. La cancellazione account rimuove anche i file locali.
 
-```bash
-npx supabase secrets set \
-  R2_ACCOUNT_ID=... \
-  R2_BUCKET=fiamma-photos \
-  R2_ACCESS_KEY_ID=... \
-  R2_SECRET_ACCESS_KEY=...
-```
+Non servono secret, bucket o funzioni Edge per le foto. Il resize a 1200 px e la
+ricodifica JPEG avvengono sul client e rimuovono i metadati EXIF (incluso il GPS)
+prima del salvataggio.
 
-5. Deploy delle funzioni:
+### Tornare a uno storage condiviso
 
-```bash
-npx supabase functions deploy r2-sign
-npx supabase functions deploy delete-account
-```
-
-`r2-sign` verifica il JWT dell'utente e consente il PUT solo sotto il prefisso
-`<user_id>/`. `delete-account` usa la service role key già iniettata da Supabase.
+Se in futuro le foto devono essere visibili agli altri utenti, serve uno storage
+cloud (Cloudflare R2, Supabase Storage o S3) con URL firmati: il client oggi
+ignora le chiavi ricevute da `get_deck`/`get_matches`.
 
 ## 3. Pagamenti monete (Stripe)
 
@@ -214,8 +201,6 @@ dopo averli cambiati serve un nuovo deploy.
      `https://<progetto>.pages.dev` (e l'eventuale dominio custom).
    - **Supabase Edge Functions**: `npx supabase secrets set APP_URL=https://<progetto>.pages.dev`
      così Stripe torna su `/coins` dopo il pagamento.
-   - **R2 → CORS**: aggiungi `https://<progetto>.pages.dev` (e il dominio custom)
-     a `AllowedOrigins`.
 
 6. Verifica locale della build di produzione:
 
@@ -237,8 +222,8 @@ npx -y wrangler@latest pages dev dist --port 8091
 - Le coordinate esatte non escono mai dal DB: `get_deck` restituisce solo la
   distanza arrotondata in km.
 - Le foto vengono ricodificate a 1200 px JPEG lato client: i metadati EXIF
-  (incluso il GPS) vengono rimossi prima dell'upload.
-- URL firmati con scadenza 1 ora; bucket privato.
+  (incluso il GPS) vengono rimossi prima del salvataggio sul dispositivo.
+- Le foto non lasciano il dispositivo: nessun URL pubblico o condivisibile.
 - Limite di 100 like al giorno per utente, imposto nel DB.
 - Blocco e segnalazione bloccano anche l'invio di nuovi messaggi a livello RLS.
 - Messaggi limitati a 2000 caratteri nel DB, non solo nella UI.
@@ -249,9 +234,10 @@ npx -y wrangler@latest pages dev dist --port 8091
 ## Limiti noti / prossimi passi
 
 - **Push notifications**: tabella `devices` pronta, invio non ancora implementato.
-- **Moderazione automatica**: le foto sono approvate al primo caricamento; la
-  coda `reports` è pensata per la revisione manuale. Aggiungere un modello
-  NSFW open-source (es. NSFWJS) in una Edge Function.
+- **Moderazione automatica**: con le foto solo locali non c'è nulla da moderare
+  lato server; la coda `reports` è pensata per la revisione manuale di profili e
+  messaggi. Se in futuro le foto tornano sul cloud, aggiungere un modello NSFW
+  open-source (es. NSFWJS) in una Edge Function.
 - **Admin**: per l'MVP usare Supabase Studio (tabella `reports`). Un pannello
   separato è il passo successivo.
 - **Abbonamenti**: non inclusi; integrare RevenueCat con webhook verso una
@@ -264,8 +250,10 @@ npx -y wrangler@latest pages dev dist --port 8091
 - **Recupero password / login social**: l'accesso è solo OTP email. Google e
   Apple richiedono un development build e la configurazione OAuth.
 - **Videochiamate**: richiedono WebRTC e un relay TURN.
-- **R2 orfani**: la lifecycle rule è la soluzione; in alternativa aggiungere
-  un endpoint DELETE firmato alla funzione.
+- **Foto locali**: non sono visibili agli altri utenti e non seguono l'account su
+  un altro dispositivo. Per condividerle serve uno storage cloud.
+- **Web e foto**: il salvataggio in localStorage è limitato a circa 5 MB; su web
+  conviene usare meno foto o passare a IndexedDB/Storage.
 
 ## Comandi utili
 

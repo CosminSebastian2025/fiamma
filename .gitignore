@@ -12,6 +12,9 @@ expo-env.d.ts
 # Cloudflare
 .wrangler/
 
+# Supabase CLI
+supabase/.temp/
+
 # Native
 .kotlin/
 *.orig.*

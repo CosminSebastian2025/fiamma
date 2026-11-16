@@ -38,7 +38,6 @@ Deno.serve(async (req) => {
     return json({ error: "delete_failed" }, 500);
   }
 
-  // Le foto su R2 vanno rimosse con una lifecycle rule sul prefisso <user_id>/
-  // oppure da un job periodico: l'API R2 non è raggiungibile da qui senza credenziali S3.
+  // Le foto sono salvate solo sul dispositivo: il client le rimuove localmente.
   return json({ deleted: true });
 });

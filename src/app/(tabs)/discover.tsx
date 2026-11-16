@@ -3,7 +3,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -14,7 +13,6 @@ import { MatchModal } from '@/components/MatchModal';
 import { SwipeCard, type SwipeCardHandle } from '@/components/SwipeCard';
 import { getDeck, swipe } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { signPhotoKeys } from '@/lib/media';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { DeckProfile, SwipeDecision } from '@/lib/types';
 
@@ -37,17 +35,7 @@ export default function Discover() {
     setError(null);
     try {
       const deck = await getDeck();
-      const urls = await signPhotoKeys(
-        deck.flatMap((profile) => profile.photos.map((photo) => photo.key)),
-      );
-      setCards(
-        deck.map((profile) => ({
-          ...profile,
-          photoUrls: profile.photos
-            .map((photo) => urls[photo.key])
-            .filter((url): url is string => Boolean(url)),
-        })),
-      );
+      setCards(deck.map((profile) => ({ ...profile, photoUrls: [] })));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -74,7 +62,7 @@ export default function Discover() {
             matchId,
             partnerId: top.id,
             name: top.display_name,
-            photoUrl: top.photoUrls[0] ?? null,
+            photoUrl: null,
           });
         }
       } catch (e) {
@@ -116,11 +104,7 @@ export default function Discover() {
           <>
             {next ? (
               <View style={styles.nextCard}>
-                {next.photoUrls[0] ? (
-                  <Image source={{ uri: next.photoUrls[0] }} style={styles.nextImage} />
-                ) : (
-                  <View style={[styles.nextImage, styles.nextPlaceholder]} />
-                )}
+                <View style={[styles.nextImage, styles.nextPlaceholder]} />
               </View>
             ) : null}
             <SwipeCard
