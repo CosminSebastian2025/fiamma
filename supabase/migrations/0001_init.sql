@@ -843,3 +843,41 @@ insert into public.interests (label) values
   ('Caffè'), ('Vino'), ('Teatro'), ('Escursionismo'), ('Pilates'),
   ('Podcast'), ('Design'), ('Volontariato'), ('Astronomia')
 on conflict (label) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Esecuzione funzioni: solo utenti autenticati.
+-- I helper servono anche alle policy RLS, quindi devono essere eseguibili.
+-- ---------------------------------------------------------------------------
+
+revoke execute on function public.is_match_with(uuid) from public, anon;
+revoke execute on function public.is_participant(uuid) from public, anon;
+revoke execute on function public.can_message(uuid) from public, anon;
+revoke execute on function public.save_profile(text, date, text, text[], text, text, text) from public, anon;
+revoke execute on function public.set_interests(text[]) from public, anon;
+revoke execute on function public.add_photo(text, int) from public, anon;
+revoke execute on function public.remove_photo(uuid) from public, anon;
+revoke execute on function public.complete_onboarding() from public, anon;
+revoke execute on function public.update_location(double precision, double precision, text) from public, anon;
+revoke execute on function public.swipe(uuid, public.swipe_decision) from public, anon;
+revoke execute on function public.mark_read(uuid) from public, anon;
+revoke execute on function public.block_user(uuid) from public, anon;
+revoke execute on function public.report_user(uuid, public.report_reason, text, boolean) from public, anon;
+revoke execute on function public.get_deck(int, int) from public, anon;
+revoke execute on function public.get_matches() from public, anon;
+
+grant execute on function public.is_match_with(uuid) to authenticated;
+grant execute on function public.is_participant(uuid) to authenticated;
+grant execute on function public.can_message(uuid) to authenticated;
+grant execute on function public.save_profile(text, date, text, text[], text, text, text) to authenticated;
+grant execute on function public.set_interests(text[]) to authenticated;
+grant execute on function public.add_photo(text, int) to authenticated;
+grant execute on function public.remove_photo(uuid) to authenticated;
+grant execute on function public.complete_onboarding() to authenticated;
+grant execute on function public.update_location(double precision, double precision, text) to authenticated;
+grant execute on function public.swipe(uuid, public.swipe_decision) to authenticated;
+grant execute on function public.mark_read(uuid) to authenticated;
+grant execute on function public.block_user(uuid) to authenticated;
+grant execute on function public.report_user(uuid, public.report_reason, text, boolean) to authenticated;
+grant execute on function public.get_deck(int, int) to authenticated;
+grant execute on function public.get_matches() to authenticated;
+

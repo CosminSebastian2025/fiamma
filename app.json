@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "a32cdea4",
-    "slug": "a32cdea4",
+    "name": "Fiamma",
+    "slug": "fiamma",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "fiamma",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0D0C11",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fiamma.app"
     },
     "android": {
+      "package": "com.fiamma.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0D0C11",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -19,7 +23,24 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fiamma accede alle tue foto solo per creare il profilo."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fiamma usa la posizione per mostrarti persone vicine. Le coordinate esatte non sono mai visibili agli altri utenti."
+        }
+      ],
+      "expo-font"
+    ]
   }
 }

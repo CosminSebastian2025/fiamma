@@ -1,8 +1,10 @@
 import { env } from './env';
 import { getSupabase } from './supabase';
 import type {
+  CoinPack,
+  CoinTransaction,
   DeckProfile,
-  Gender,
+  Gift,
   Interest,
   MatchRow,
   Message,
@@ -10,6 +12,7 @@ import type {
   ProfileDraft,
   ProfilePhoto,
   ReportReason,
+  StickerPack,
   SwipeDecision,
 } from './types';
 
@@ -52,8 +55,16 @@ export async function getMyInterests(userId: string): Promise<string[]> {
     .select('interest_id, interests(label)')
     .eq('user_id', userId);
   if (error) raise(error.message, 'Impossibile caricare gli interessi');
-  const rows = (data ?? []) as { interest_id: number; interests: { label: string } | null }[];
-  return rows.map((row) => row.interests?.label).filter((label): label is string => Boolean(label));
+  const rows = (data ?? []) as unknown as {
+    interest_id: number;
+    interests: { label: string } | { label: string }[] | null;
+  }[];
+  return rows
+    .map((row) => {
+      if (Array.isArray(row.interests)) return row.interests[0]?.label;
+      return row.interests?.label;
+    })
+    .filter((label): label is string => Boolean(label));
 }
 
 export async function saveProfile(draft: ProfileDraft): Promise<Profile> {
@@ -182,6 +193,107 @@ export async function sendMessage(
     .single();
   if (error) raise(error.message, 'Invio non riuscito');
   return data as Message;
+}
+
+export async function getWallet(): Promise<number> {
+  const { data, error } = await getSupabase().rpc('get_wallet');
+  if (error) raise(error.message, 'Impossibile caricare il saldo monete');
+  return (data as number) ?? 0;
+}
+
+export async function getCoinShop(): Promise<CoinPack[]> {
+  const { data, error } = await getSupabase().rpc('get_coin_shop');
+  if (error) raise(error.message, 'Impossibile caricare i pacchetti');
+  return (data as CoinPack[]) ?? [];
+}
+
+export async function getGiftCatalog(): Promise<Gift[]> {
+  const { data, error } = await getSupabase().rpc('get_gift_catalog');
+  if (error) raise(error.message, 'Impossibile caricare i regali');
+  return (data as Gift[]) ?? [];
+}
+
+export async function getStickerCatalog(): Promise<StickerPack[]> {
+  const { data, error } = await getSupabase().rpc('get_sticker_catalog');
+  if (error) raise(error.message, 'Impossibile caricare gli sticker');
+  return (data as StickerPack[]) ?? [];
+}
+
+export async function getCoinTransactions(limit = 50): Promise<CoinTransaction[]> {
+  const { data, error } = await getSupabase()
+    .from('coin_ledger')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) raise(error.message, 'Impossibile caricare i movimenti');
+  return (data as CoinTransaction[]) ?? [];
+}
+
+export async function sendGift(matchId: string, giftId: string): Promise<Message> {
+  const { data, error } = await getSupabase().rpc('send_gift', {
+    p_match: matchId,
+    p_gift: giftId,
+  });
+  if (error) raise(error.message, 'Invio regalo non riuscito');
+  return data as Message;
+}
+
+export async function sendSticker(matchId: string, stickerId: string): Promise<Message> {
+  const { data, error } = await getSupabase().rpc('send_sticker', {
+    p_match: matchId,
+    p_sticker: stickerId,
+  });
+  if (error) raise(error.message, 'Invio sticker non riuscito');
+  return data as Message;
+}
+
+export async function purchaseStickerPack(packId: string): Promise<number> {
+  const { data, error } = await getSupabase().rpc('purchase_sticker_pack', {
+    p_pack: packId,
+  });
+  if (error) raise(error.message, 'Acquisto sticker non riuscito');
+  return (data as number) ?? 0;
+}
+
+function checkoutError(code: string | undefined): string | undefined {
+  switch (code) {
+    case 'stripe_not_configured':
+      return 'Pagamenti non ancora configurati';
+    case 'price_not_configured':
+      return 'Pacchetto non configurato su Stripe';
+    case 'price_mismatch':
+      return 'Prezzo non allineato con Stripe, riprova più tardi';
+    case 'unknown_pack':
+      return 'Pacchetto non disponibile';
+    case 'unauthorized':
+      return 'Sessione scaduta, accedi di nuovo';
+    default:
+      return undefined;
+  }
+}
+
+export async function startCoinCheckout(packId: string): Promise<string> {
+  const { data, error } = await getSupabase().functions.invoke('stripe-coin-checkout', {
+    body: { packId },
+  });
+
+  if (error) {
+    let code: string | undefined;
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const payload = (await context.json()) as { error?: unknown };
+        if (typeof payload.error === 'string') code = payload.error;
+      } catch {
+        // Corpo non JSON: resta l'errore generico.
+      }
+    }
+    raise(checkoutError(code), 'Acquisto non disponibile');
+  }
+
+  const payload = data as { url?: string; error?: string } | null;
+  if (!payload?.url) raise(checkoutError(payload?.error), 'Acquisto non disponibile');
+  return payload.url;
 }
 
 export async function deleteAccount(): Promise<void> {

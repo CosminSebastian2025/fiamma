@@ -28,7 +28,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isConfigured);
   const mounted = useRef(true);
 
   const loadProfile = useCallback(async (userId: string) => {
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mounted.current = true;
     if (!isConfigured) {
-      setLoading(false);
       return () => {
         mounted.current = false;
       };

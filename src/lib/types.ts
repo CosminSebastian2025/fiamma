@@ -68,13 +68,67 @@ export interface MatchRow {
   photoUrl: string | null;
 }
 
+export type MessageKind = 'text' | 'gift' | 'sticker';
+
 export interface Message {
   id: string;
   match_id: string;
   sender_id: string;
-  body: string;
+  body: string | null;
+  kind: MessageKind;
+  gift_id: string | null;
+  sticker_id: string | null;
   created_at: string;
   read_at: string | null;
+}
+
+export interface Gift {
+  id: string;
+  name: string;
+  emoji: string;
+  coin_cost: number;
+  sort: number;
+}
+
+export interface Sticker {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
+export interface StickerPack {
+  pack_id: string;
+  name: string;
+  emoji: string;
+  coin_cost: number;
+  unlocked: boolean;
+  stickers: Sticker[];
+}
+
+export interface CoinPack {
+  id: string;
+  name: string;
+  description: string;
+  coins: number;
+  bonus_coins: number;
+  price_cents: number;
+  currency: string;
+  sort: number;
+}
+
+export interface CoinTransaction {
+  id: number;
+  delta: number;
+  balance_after: number;
+  reason:
+    | 'purchase'
+    | 'gift_sent'
+    | 'sticker_pack'
+    | 'refund'
+    | 'bonus'
+    | 'admin_adjustment';
+  ref: string | null;
+  created_at: string;
 }
 
 export interface ProfileDraft {

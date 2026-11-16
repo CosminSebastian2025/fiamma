@@ -75,7 +75,7 @@ export async function uploadPhoto(userId: string, image: PreparedImage): Promise
   const response = await fetch(signed.url, {
     method: 'PUT',
     headers: { 'Content-Type': 'image/jpeg' },
-    body: base64ToBytes(image.base64),
+    body: base64ToBytes(image.base64) as unknown as BodyInit,
   });
   if (!response.ok) {
     throw new Error(`Upload foto non riuscito (${response.status})`);
@@ -86,6 +86,12 @@ export async function uploadPhoto(userId: string, image: PreparedImage): Promise
 export async function signPhotoKeys(keys: string[]): Promise<Record<string, string>> {
   const unique = Array.from(new Set(keys.filter(Boolean)));
   if (unique.length === 0) return {};
-  const signed = await signR2(unique.slice(0, 30), 'get');
+
+  const chunks: string[][] = [];
+  for (let index = 0; index < unique.length; index += 30) {
+    chunks.push(unique.slice(index, index + 30));
+  }
+
+  const signed = (await Promise.all(chunks.map((chunk) => signR2(chunk, 'get')))).flat();
   return Object.fromEntries(signed.map((entry) => [entry.key, entry.url]));
 }
