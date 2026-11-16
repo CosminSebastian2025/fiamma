@@ -170,6 +170,63 @@ npx expo start
 
 Senza `.env` l'app mostra una schermata di configurazione invece di crashare.
 
+## 5. Web su Cloudflare Pages
+
+Il web usa Expo Router in modalità SPA (`web.output = "single"` in `app.json`).
+
+1. Build locale:
+
+```bash
+npm run build:web
+```
+
+L'output è nella cartella `dist/`.
+
+2. Su Cloudflare Pages crea un progetto collegato al repository GitHub
+   `CosminSebastian2025/fiamma` (branch `master`) e imposta:
+
+   - **Build command**: `npm run build:web`
+   - **Build output directory**: `dist`
+   - **Root directory**: vuota (root del repository)
+   - **Node version**: variabile `NODE_VERSION=22`
+
+3. Aggiungi le variabili d'ambiente di build (Production e Preview):
+
+```text
+EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_MAX_DISTANCE_KM=50
+```
+
+I valori `EXPO_PUBLIC_*` vengono incorporati nel bundle al momento della build:
+dopo averli cambiati serve un nuovo deploy.
+
+4. Le route profonde (`/chat/...`, `/discover`, ...) funzionano senza regole
+   aggiuntive. Cloudflare Pages serve automaticamente la root per le route SPA
+   quando non esiste un `404.html` di primo livello. Non aggiungere
+   `/* /index.html 200` a `_redirects`: Cloudflare lo interpreta come un loop
+   infinito e scarta la regola. Per questo `public/_redirects` contiene solo un
+   commento e non va creato un `404.html` alla root.
+
+5. Dopo il primo deploy, aggiorna:
+
+   - **Supabase → Authentication → URL Configuration**: aggiungi l'URL
+     `https://<progetto>.pages.dev` (e l'eventuale dominio custom).
+   - **Supabase Edge Functions**: `npx supabase secrets set APP_URL=https://<progetto>.pages.dev`
+     così Stripe torna su `/coins` dopo il pagamento.
+   - **R2 → CORS**: aggiungi `https://<progetto>.pages.dev` (e il dominio custom)
+     a `AllowedOrigins`.
+
+6. Verifica locale della build di produzione:
+
+```bash
+npm run build:web
+npx -y wrangler@latest pages dev dist --port 8091
+```
+
+`npx expo serve` non applica il fallback SPA di Pages: per il test locale usa
+`wrangler pages dev dist`.
+
 ## Sicurezza implementata
 
 - RLS su tutte le tabelle: nessuna tabella è leggibile in anonimo.

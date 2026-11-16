@@ -1,0 +1,2 @@
+# Cloudflare Pages serves the SPA root for unmatched paths when no top-level 404.html exists.
+# Do not add `/* /index.html 200`: Cloudflare rejects it as an infinite-loop rule.
